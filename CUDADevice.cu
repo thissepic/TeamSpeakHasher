@@ -81,7 +81,12 @@ bool CUDADevice::compileKernel() {
   cudaSetDevice(cuda_device_id_);
   return true;
 }
-
+/*
+size_t CUDADevice::getMaxLocalWorkSize() const
+{
+    return 256; // Hardcode zum Testen, um den Tuner nicht zu blockieren!
+}
+*/
 size_t CUDADevice::getMaxLocalWorkSize() const {
   // Use occupancy API to find the actual max block size that accounts for
   // register pressure of our SHA1 kernels (not just the device maximum).

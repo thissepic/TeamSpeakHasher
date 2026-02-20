@@ -16,7 +16,8 @@ ifdef NVCC
   LDLIBS += -lcudart
   CUDA_GENCODE := -gencode arch=compute_50,code=sm_50 \
                   -gencode arch=compute_75,code=sm_75 \
-                  -gencode arch=compute_86,code=sm_86
+                  -gencode arch=compute_86,code=sm_86 \
+				  -gencode arch=compute_89,code=sm_89
   cuda_srcfiles := CUDADevice.cu
   cuda_objects := $(patsubst %.cu, %.cu.o, $(cuda_srcfiles))
 else
@@ -29,7 +30,7 @@ $(appname): $(objects) $(cuda_objects)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(appname) $(objects) $(cuda_objects) $(LDLIBS)
 
 %.cu.o: %.cu
-	$(NVCC) -std=c++11 -DHAVE_CUDA -DHAVE_OPENCL $(CUDA_GENCODE) -Xcompiler -Wall -c $< -o $@
+	$(NVCC) -O3 -std=c++11 -DHAVE_CUDA -DHAVE_OPENCL $(CUDA_GENCODE) -use_fast_math -Xptxas -O3,-v -lineinfo -Xcompiler -Wall -c $< -o $@
 
 depend: .depend
 

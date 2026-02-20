@@ -201,8 +201,8 @@
   <!-- CUDA source: compiled by nvcc when UseCuda=true, otherwise just listed -->
   <ItemGroup Condition="'$(UseCuda)'=='true'">
     <CudaCompile Include="CUDADevice.cu">
-      <CodeGeneration>compute_50,sm_50;compute_75,sm_75;compute_86,sm_86</CodeGeneration>
-      <AdditionalOptions>-DHAVE_CUDA -DHAVE_OPENCL %(AdditionalOptions)</AdditionalOptions>
+      <CodeGeneration>compute_50,sm_50;compute_75,sm_75;compute_86,sm_86;compute_89,sm_89</CodeGeneration>
+      <AdditionalOptions>-use_fast_math -Xptxas -O3,-v -lineinfo -DHAVE_CUDA -DHAVE_OPENCL %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup Condition="'$(UseCuda)'!='true'">

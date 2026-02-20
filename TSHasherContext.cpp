@@ -132,6 +132,7 @@ TSHasherContext::~TSHasherContext() {
 
 std::pair<uint64_t, uint64_t> TSHasherContext::tune(IHasherDevice* device,
   uint32_t device_id) {
+  //return { 2097152, 32 };
   using namespace std::chrono;
   std::string deviceidentifier = device->getDeviceIdentifier(device_id);
   auto conf = Config::tuned.find(deviceidentifier);
@@ -159,7 +160,8 @@ std::pair<uint64_t, uint64_t> TSHasherContext::tune(IHasherDevice* device,
   max_local_worksize = std::min(max_local_worksize, tune_dev->getMaxWorkItemSize());
 
   const size_t max_global_work_size = MAX_GLOBALLOCAL_RATIO * max_local_worksize;
-
+  //std::cout << std::endl << std::endl << "  Max Local Work Size=" << max_local_worksize << 
+  //    "  Max Global Work Size=" << max_global_work_size << std::endl;
   tune_dev->allocateBuffers(max_global_work_size, tuneidentity);
 
   uint8_t* tune_h_results = new uint8_t[max_global_work_size]();
