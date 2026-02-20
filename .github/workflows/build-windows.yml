@@ -8,9 +8,9 @@ env:
   BUILD_PLATFORM: x64
   OPENCL_LIB_WIN32: OpenCL/lib/x86
   OPENCL_LIB_WIN64: OpenCL/lib/x86_64
-  
+
 jobs:
-  build:
+  build-opencl:
     runs-on: windows-latest
 
     steps:
@@ -18,11 +18,11 @@ jobs:
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.0.2
-      
+
     - name: Download OpenCL SDK
       run: Invoke-WebRequest -OutFile lightOCLSDK.zip https://github.com/GPUOpen-LibrariesAndSDKs/OCL-SDK/files/1406216/lightOCLSDK.zip
       shell: pwsh
-      
+
     - name: Extract OpenCL SDK
       run: 7z x lightOCLSDK.zip -oOpenCL
 
@@ -34,4 +34,44 @@ jobs:
       with:
         name: TeamSpeakHasher-Windows-Bin
         path: x64/Release/TeamSpeakHasher.exe
-        
+
+  build-cuda:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    - name: Install CUDA Toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      id: cuda-toolkit
+      with:
+        cuda: '12.6.3'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+    - name: Copy CUDA Build Customizations to MSBuild
+      run: |
+        $cudaPath = "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
+        $src = Join-Path $cudaPath "extras\visual_studio_integration\MSBuildExtensions\*"
+        $dst = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations\"
+        Copy-Item -Path $src -Destination $dst -Force
+      shell: pwsh
+
+    - name: Download OpenCL SDK
+      run: Invoke-WebRequest -OutFile lightOCLSDK.zip https://github.com/GPUOpen-LibrariesAndSDKs/OCL-SDK/files/1406216/lightOCLSDK.zip
+      shell: pwsh
+
+    - name: Extract OpenCL SDK
+      run: 7z x lightOCLSDK.zip -oOpenCL
+
+    - name: Build with CUDA
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: msbuild /p:Platform=${{env.BUILD_PLATFORM}} /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:UseCuda=true ${{env.SOLUTION_FILE_PATH}}
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: TeamSpeakHasher-Windows-CUDA-Bin
+        path: x64/Release/TeamSpeakHasher.exe

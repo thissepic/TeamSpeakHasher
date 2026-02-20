@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -53,7 +53,25 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- CUDA support: set UseCuda=true via Directory.Build.props or /p:UseCuda=true.
+       Set CudaToolkitVersion explicitly (e.g. 12.6) or let it auto-detect from CUDA_PATH.
+       This block MUST be after Microsoft.Cpp.props which imports Directory.Build.props. -->
+  <PropertyGroup>
+    <UseCuda Condition="'$(UseCuda)'==''">false</UseCuda>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(UseCuda)'=='true'">
+    <CudaToolkitVersion Condition="'$(CudaToolkitVersion)'=='' And '$(CUDA_PATH)'!=''">$([System.Text.RegularExpressions.Regex]::Match('$(CUDA_PATH)', '(\d+\.\d+)').Groups[1].Value)</CudaToolkitVersion>
+    <!-- Snapshot for import paths: CUDA x.y.props overwrites CudaToolkitVersion to "vX.Y" -->
+    <_CudaImportVersion>$(CudaToolkitVersion)</_CudaImportVersion>
+    <CudaPreprocessorDefs>HAVE_CUDA;</CudaPreprocessorDefs>
+    <CudaLibs>cudart.lib;</CudaLibs>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(UseCuda)'!='true'">
+    <CudaPreprocessorDefs />
+    <CudaLibs />
+  </PropertyGroup>
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA $(_CudaImportVersion).props" Condition="'$(UseCuda)'=='true'" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -75,13 +93,13 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;HAVE_OPENCL;$(CudaPreprocessorDefs)%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;$(CudaLibs)%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OPENCL_LIB_WIN32)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -90,14 +108,14 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;HAVE_OPENCL;$(CudaPreprocessorDefs)%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;$(CudaLibs)%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OPENCL_LIB_WIN64);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -108,7 +126,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;HAVE_OPENCL;$(CudaPreprocessorDefs)%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
     </ClCompile>
@@ -117,7 +135,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(OPENCL_LIB_WIN32)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;$(CudaLibs)%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -127,7 +145,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;HAVE_OPENCL;$(CudaPreprocessorDefs)%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
@@ -136,14 +154,28 @@
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;$(CudaLibs)%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OPENCL_LIB_WIN64);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
+  <!-- CUDA include/lib paths for C++ compiler. MUST be after config-specific ItemDefinitionGroups
+       because they set AdditionalIncludeDirectories without %(…), which would overwrite earlier values. -->
+  <ItemDefinitionGroup Condition="'$(UseCuda)'=='true'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(CudaToolkitIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(CudaToolkitLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="BackendFactory.h" />
     <ClInclude Include="Config.h" />
+    <ClInclude Include="CUDADevice.h" />
     <ClInclude Include="DeviceContext.h" />
+    <ClInclude Include="IHasherDevice.h" />
     <ClInclude Include="IdentityProgress.h" />
+    <ClInclude Include="OpenCLDevice.h" />
     <ClInclude Include="sha1.h" />
     <ClInclude Include="Table.h" />
     <ClInclude Include="TimerKiller.h" />
@@ -152,18 +184,32 @@
     <ClInclude Include="TunedParameters.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BackendFactory.cpp" />
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="DeviceContext.cpp" />
     <ClCompile Include="IdentityProgress.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="OpenCLDevice.cpp" />
     <ClCompile Include="sha1.cpp" />
     <ClCompile Include="TSHasherContext.cpp" />
     <ClCompile Include="TunedParameters.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Kernel.h" />
+    <None Include="OpenCLKernel.h" />
+    <None Include="CUDAKernel.cuh" />
+  </ItemGroup>
+  <!-- CUDA source: compiled by nvcc when UseCuda=true, otherwise just listed -->
+  <ItemGroup Condition="'$(UseCuda)'=='true'">
+    <CudaCompile Include="CUDADevice.cu">
+      <CodeGeneration>compute_50,sm_50;compute_75,sm_75;compute_86,sm_86</CodeGeneration>
+      <AdditionalOptions>-DHAVE_CUDA -DHAVE_OPENCL %(AdditionalOptions)</AdditionalOptions>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseCuda)'!='true'">
+    <None Include="CUDADevice.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA $(_CudaImportVersion).targets" Condition="'$(UseCuda)'=='true'" />
   </ImportGroup>
 </Project>

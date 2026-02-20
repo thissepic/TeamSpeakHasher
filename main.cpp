@@ -25,6 +25,7 @@ SOFTWARE.
 #include <string>
 #include <thread>
 
+#include "BackendFactory.h"
 #include "Config.h"
 #include "TSHasherContext.h"
 
@@ -55,7 +56,7 @@ void consoleHandler(int signal) {
 
 const char* inputarguments_add = "add [-publickey PUBLICKEY] [-startcounter STARTCOUNTER] [-nickname NICKNAME]";
 
-const char* inputarguments_compute = "compute  [-throttle throttlefactor]  [-retune]";
+const char* inputarguments_compute = "compute  [-throttle throttlefactor]  [-retune]  [-backend opencl|cuda]";
 
 const char* inputarguments_help = "help";
 
@@ -67,6 +68,7 @@ enum StringCode {
   eNICKNAME,
   eTHROTTLE,
   eRETUNE,
+  eBACKEND,
   eHELP,
   eERR
 };
@@ -81,6 +83,7 @@ StringCode getStringCode(const std::string& str) {
 
   if (str == "-throttle") { return eTHROTTLE; }
   if (str == "-retune") { return eRETUNE; }
+  if (str == "-backend" || str == "--backend") { return eBACKEND; }
   if (str == "-h" ||
     str == "--h" ||
     str == "-help" ||
@@ -176,6 +179,7 @@ void handleCompute(int argc, char* argv[]) {
   const auto inputformat_compute = "TeamspeakHasher " + std::string(inputarguments_compute) + "\n";
 
   uint64_t throttlefactor = 1;
+  Backend backend = Backend::OPENCL;
 
   if (!configavailable || Config::conf.empty()) {
     std::cout << "Error: Please add a public key first." << std::endl;
@@ -207,6 +211,14 @@ void handleCompute(int argc, char* argv[]) {
       Config::tuned.clear();
       i++;
       break;
+    case eBACKEND:
+      if (i + 1 >= argc) {
+        std::cout << std::endl << "Error: Too few arguments. The input format is as follows." << std::endl << inputformat_compute;
+        exit(-1);
+      }
+      backend = parseBackend(std::string(argv[i + 1]));
+      i += 2;
+      break;
     default:
       std::cout << std::endl << "Error: Invalid arguments. The input format is as follows." << std::endl << inputformat_compute;
       exit(-1);
@@ -235,10 +247,9 @@ void handleCompute(int argc, char* argv[]) {
   uint64_t startcounter = selection->second.currentcounter;
   uint64_t bestcounter = selection->second.bestcounter;
 
+  std::cout << "Initializing " << (backend == Backend::CUDA ? "CUDA" : "OpenCL") << "..." << std::endl;
 
-  std::cout << "Initializing OpenCL..." << std::endl;
-
-  TSHasherContext hasherctx(publickey, startcounter, bestcounter, throttlefactor);
+  TSHasherContext hasherctx(publickey, startcounter, bestcounter, throttlefactor, backend);
 
   hasherctxptr = &hasherctx;
 

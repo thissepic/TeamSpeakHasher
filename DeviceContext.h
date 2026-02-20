@@ -30,9 +30,7 @@ SOFTWARE.
 #include <string>
 #include <vector>
 
-#include <CL/cl.hpp>
-#include "TSHasherContext.h"
-
+#include "IHasherDevice.h"
 
 // forward declaration because of cyclic dependency
 // between DeviceContext and TSHasherContext
@@ -41,45 +39,22 @@ class TSHasherContext;
 class DeviceContext {
 public:
   DeviceContext(std::string device_name,
-    cl::Device device,
-    cl::Context context,
-    cl::Program program,
-    cl::Kernel kernel,
-    cl::Kernel kernel2,
-    cl::CommandQueue command_queue,
+    IHasherDevice* device,
     TSHasherContext* tshasherctx,
-    cl_uint max_compute_units,
-    cl_device_type devicetype,
     size_t global_work_size,
     size_t local_work_size,
-    cl::Buffer d_results,
-    cl::Buffer d_identity,
     uint8_t* h_results,
     std::string identitystring);
 
   std::string      device_name;
-  cl::Device      device;
-  cl::Context         context;
-  cl::Program         program;
-  cl::Kernel          kernel;
-  cl::Kernel          kernel2;
-  cl::CommandQueue    command_queue;
+  IHasherDevice*   device;
 
   TSHasherContext* tshasherctx;
-
-  cl_uint             max_compute_units;
-
-  cl_device_type        devicetype;
 
   size_t            global_work_size;
   size_t            local_work_size;
 
-  cl::Buffer          d_results;
-  cl::Buffer      d_identity;
   uint8_t* h_results;
-
-  cl::Event      kernelcompletedevent;
-  cl::Event      resultavailableevent;
 
   volatile uint8_t      bestdifficulty;
   volatile uint64_t      bestdifficulty_counter;

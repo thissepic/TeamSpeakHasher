@@ -23,6 +23,7 @@ SOFTWARE.
 #define TSHASHERCONTEXT_H_
 
 #include "DeviceContext.h"
+#include "IHasherDevice.h"
 #include "TimerKiller.h"
 #include "TSUtil.h"
 
@@ -43,10 +44,6 @@ SOFTWARE.
 #define __stdcall
 #endif
 
-#define DEV_TYPE    CL_DEVICE_TYPE_GPU
-// #define DEV_TYPE      CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU
-// #define DEV_TYPE      CL_DEVICE_TYPE_CPU
-
 // forward declaration because of cyclic dependency
 // between DeviceContext and TSHasherContext
 class DeviceContext;
@@ -56,7 +53,10 @@ public:
   TSHasherContext(std::string identity,
     uint64_t startcounter,
     uint64_t bestcounter,
-    uint64_t throttlefactor);
+    uint64_t throttlefactor,
+    Backend backend = Backend::OPENCL);
+
+  ~TSHasherContext();
 
   void compute();
   void printinfo(const std::vector<DeviceContext>& dev_ctxs);
@@ -69,27 +69,20 @@ public:
   volatile uint64_t global_bestdifficulty_counter;
 
 private:
-  std::pair<uint64_t, uint64_t> tune(cl::Device* device, cl_uint device_id, const char* build_opts);
+  std::pair<uint64_t, uint64_t> tune(IHasherDevice* device, uint32_t device_id);
 
   std::string identity;
 
   uint64_t throttlefactor;
   std::mutex startcounter_mutex;
   std::vector<DeviceContext> dev_ctxs;
-  std::vector<cl::Device> devices;
+  std::vector<IHasherDevice*> owned_devices;
   std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 
   static void read_kernel_result(DeviceContext* dev_ctx);
   static void clearConsole();
   std::string getFormattedDouble(double x);
   std::string getFormattedDuration(double seconds);
-
-  std::string getDeviceIdentifier(cl::Device* device, cl_uint device_id);
-
-  static const char* KERNEL_CODE;
-  static const char* KERNEL_NAME;
-  static const char* KERNEL_NAME2;
-  static const char* BUILD_OPTS_BASE;
 
   static const size_t MAX_DEVICES;
   static const size_t DEV_DEFAULT_LOCAL_WORK_SIZE;

@@ -29,7 +29,6 @@ SOFTWARE.
 #include <string>
 #include <vector>
 
-#include <CL/cl.hpp>
 #include "TSHasherContext.h"
 
 
@@ -37,34 +36,17 @@ const uint64_t DeviceContext::NUM_TIME_MEASURMENTS = 32;
 
 
 DeviceContext::DeviceContext(std::string device_name,
-  cl::Device device,
-  cl::Context context,
-  cl::Program program,
-  cl::Kernel kernel,
-  cl::Kernel kernel2,
-  cl::CommandQueue command_queue,
+  IHasherDevice* device,
   TSHasherContext* tshasherctx,
-  cl_uint max_compute_units,
-  cl_device_type devicetype,
   size_t global_work_size,
   size_t local_work_size,
-  cl::Buffer d_results,
-  cl::Buffer d_identity,
   uint8_t* h_results,
   std::string identitystring) :
   device_name(std::move(device_name)),
   device(device),
-  program(program),
-  kernel(kernel),
-  kernel2(kernel2),
-  command_queue(command_queue),
   tshasherctx(tshasherctx),
-  max_compute_units(max_compute_units),
-  devicetype(devicetype),
   global_work_size(global_work_size),
   local_work_size(local_work_size),
-  d_results(d_results),
-  d_identity(d_identity),
   h_results(h_results),
   identitystring(std::move(identitystring)),
   recenttimes(NUM_TIME_MEASURMENTS),
