@@ -1,0 +1,31 @@
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.sln.docstates
+
+# Build output
+x64/
+Debug/
+Release/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.log
+
+# Intermediate directories
+TeamSpeakHasher/x64/
+
+# Linux build artifacts
+*.o
+*.d
+.depend
+TeamSpeakHasher/TeamSpeakHasher
+
+# Config (generated at runtime)
+tshasher.ini
+
+# Claude Code
+.claude/
+CLAUDE.md

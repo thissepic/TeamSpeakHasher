@@ -93,6 +93,16 @@ typedef enum sha1_constants
   b  = rotate (b, 30u);             \
 }
 
+// Spezielles Makro fuer die uint4 Vektorisierung
+#define SHA1_STEP_VEC4(f,a,b,c,d,e,x)        \
+{                                             \
+  e += (uint4)(K);                            \
+  e += x;                                     \
+  e += f (b, c, d);                           \
+  e += rotate (a, (uint4)(5u));               \
+  b  = rotate (b, (uint4)(30u));              \
+}
+
 typedef uchar  u8;
 typedef ushort u16;
 typedef uint   u32;
@@ -292,7 +302,828 @@ void sha1_64 (u32 block[16], u32 digest[5])
   digest[3] += d;
   digest[4] += e;
 }
+)"
 
+R"(
+// Vektorisierte volle SHA-1 Kompression (4 Lanes parallel, fuer Block 1 im Double-Block-Kernel)
+void sha1_64_vec4 (uint4 block[16], uint4 digest[5])
+{
+  uint4 a = digest[0];
+  uint4 b = digest[1];
+  uint4 c = digest[2];
+  uint4 d = digest[3];
+  uint4 e = digest[4];
+
+  uint4 w0_t = block[ 0];
+  uint4 w1_t = block[ 1];
+  uint4 w2_t = block[ 2];
+  uint4 w3_t = block[ 3];
+  uint4 w4_t = block[ 4];
+  uint4 w5_t = block[ 5];
+  uint4 w6_t = block[ 6];
+  uint4 w7_t = block[ 7];
+  uint4 w8_t = block[ 8];
+  uint4 w9_t = block[ 9];
+  uint4 wa_t = block[10];
+  uint4 wb_t = block[11];
+  uint4 wc_t = block[12];
+  uint4 wd_t = block[13];
+  uint4 we_t = block[14];
+  uint4 wf_t = block[15];
+
+  #undef K
+  #define K SHA1C00
+
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, w0_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w1_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w2_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w3_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w4_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, w5_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w6_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w7_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w8_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w9_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wa_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, wb_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, wc_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, wd_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, we_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wf_t);
+
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w3_t);
+
+  #undef K
+  #define K SHA1C01
+
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w7_t);
+
+  #undef K
+  #define K SHA1C02
+
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wb_t);
+
+  #undef K
+  #define K SHA1C03
+
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wf_t);
+
+  digest[0] += a;
+  digest[1] += b;
+  digest[2] += c;
+  digest[3] += d;
+  digest[4] += e;
+}
+)"
+
+R"(
+bool sha1_64_check (u32 block[16], u32 digest[5], u32 td0, u32 td1, u32 td2, u32 td3, u32 td4) {
+  u32 a = digest[0];
+  u32 b = digest[1];
+  u32 c = digest[2];
+  u32 d = digest[3];
+  u32 e = digest[4];
+
+  u32 w0_t = block[ 0];
+  u32 w1_t = block[ 1];
+  u32 w2_t = block[ 2];
+  u32 w3_t = block[ 3];
+  u32 w4_t = block[ 4];
+  u32 w5_t = block[ 5];
+  u32 w6_t = block[ 6];
+  u32 w7_t = block[ 7];
+  u32 w8_t = block[ 8];
+  u32 w9_t = block[ 9];
+  u32 wa_t = block[10];
+  u32 wb_t = block[11];
+  u32 wc_t = block[12];
+  u32 wd_t = block[13];
+  u32 we_t = block[14];
+  u32 wf_t = block[15];
+
+  #undef K
+  #define K SHA1C00
+
+  SHA1_STEP (SHA1_F0o, a, b, c, d, e, w0_t);
+  SHA1_STEP (SHA1_F0o, e, a, b, c, d, w1_t);
+  SHA1_STEP (SHA1_F0o, d, e, a, b, c, w2_t);
+  SHA1_STEP (SHA1_F0o, c, d, e, a, b, w3_t);
+  SHA1_STEP (SHA1_F0o, b, c, d, e, a, w4_t);
+  SHA1_STEP (SHA1_F0o, a, b, c, d, e, w5_t);
+  SHA1_STEP (SHA1_F0o, e, a, b, c, d, w6_t);
+  SHA1_STEP (SHA1_F0o, d, e, a, b, c, w7_t);
+  SHA1_STEP (SHA1_F0o, c, d, e, a, b, w8_t);
+  SHA1_STEP (SHA1_F0o, b, c, d, e, a, w9_t);
+  SHA1_STEP (SHA1_F0o, a, b, c, d, e, wa_t);
+  SHA1_STEP (SHA1_F0o, e, a, b, c, d, wb_t);
+  SHA1_STEP (SHA1_F0o, d, e, a, b, c, wc_t);
+  SHA1_STEP (SHA1_F0o, c, d, e, a, b, wd_t);
+  SHA1_STEP (SHA1_F0o, b, c, d, e, a, we_t);
+  SHA1_STEP (SHA1_F0o, a, b, c, d, e, wf_t);
+
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP (SHA1_F0o, e, a, b, c, d, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP (SHA1_F0o, d, e, a, b, c, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP (SHA1_F0o, c, d, e, a, b, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP (SHA1_F0o, b, c, d, e, a, w3_t);
+
+  #undef K
+  #define K SHA1C01
+
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, w7_t);
+
+  #undef K
+  #define K SHA1C02
+
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP (SHA1_F2o, a, b, c, d, e, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP (SHA1_F2o, e, a, b, c, d, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP (SHA1_F2o, d, e, a, b, c, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP (SHA1_F2o, c, d, e, a, b, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP (SHA1_F2o, b, c, d, e, a, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP (SHA1_F2o, a, b, c, d, e, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP (SHA1_F2o, e, a, b, c, d, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP (SHA1_F2o, d, e, a, b, c, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP (SHA1_F2o, c, d, e, a, b, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP (SHA1_F2o, b, c, d, e, a, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP (SHA1_F2o, a, b, c, d, e, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP (SHA1_F2o, e, a, b, c, d, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP (SHA1_F2o, d, e, a, b, c, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP (SHA1_F2o, c, d, e, a, b, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP (SHA1_F2o, b, c, d, e, a, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP (SHA1_F2o, a, b, c, d, e, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP (SHA1_F2o, e, a, b, c, d, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP (SHA1_F2o, d, e, a, b, c, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP (SHA1_F2o, c, d, e, a, b, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP (SHA1_F2o, b, c, d, e, a, wb_t);
+
+  #undef K
+  #define K SHA1C03
+
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP (SHA1_F1, a, b, c, d, e, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP (SHA1_F1, e, a, b, c, d, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP (SHA1_F1, d, e, a, b, c, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP (SHA1_F1, c, d, e, a, b, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP (SHA1_F1, b, c, d, e, a, wf_t);
+
+  // ---- EARLY EXIT LOGIK ----
+  u32 final_h0 = digest[0] + a;
+
+  // Da TeamSpeak Level >= 32 gesucht werden, muss der erste Block zwingend 0 sein
+  if (final_h0 != 0) return false;
+
+  // Nur bei einem potentiellen Treffer berechnen wir den Rest
+  u32 final_h1 = digest[1] + b;
+  u32 final_h2 = digest[2] + c;
+  u32 final_h3 = digest[3] + d;
+  u32 final_h4 = digest[4] + e;
+
+  return 0 == ((final_h0 & td0) |
+               (final_h1 & td1) |
+               (final_h2 & td2) |
+               (final_h3 & td3) |
+               (final_h4 & td4));
+}
+)"
+
+R"(
+// Vektorisierte Early-Exit SHA-1 Funktion (4 Hashes parallel)
+bool sha1_64_check_vec4 (uint4 block[16], uint4 digest[5], u32 td0, u32 td1, u32 td2, u32 td3, u32 td4) {
+  uint4 a = digest[0];
+  uint4 b = digest[1];
+  uint4 c = digest[2];
+  uint4 d = digest[3];
+  uint4 e = digest[4];
+
+  uint4 w0_t = block[ 0];
+  uint4 w1_t = block[ 1];
+  uint4 w2_t = block[ 2];
+  uint4 w3_t = block[ 3];
+  uint4 w4_t = block[ 4];
+  uint4 w5_t = block[ 5];
+  uint4 w6_t = block[ 6];
+  uint4 w7_t = block[ 7];
+  uint4 w8_t = block[ 8];
+  uint4 w9_t = block[ 9];
+  uint4 wa_t = block[10];
+  uint4 wb_t = block[11];
+  uint4 wc_t = block[12];
+  uint4 wd_t = block[13];
+  uint4 we_t = block[14];
+  uint4 wf_t = block[15];
+
+  #undef K
+  #define K SHA1C00
+
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, w0_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w1_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w2_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w3_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w4_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, w5_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w6_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w7_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w8_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w9_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wa_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, wb_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, wc_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, wd_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, we_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wf_t);
+
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w3_t);
+
+  #undef K
+  #define K SHA1C01
+
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w7_t);
+
+  #undef K
+  #define K SHA1C02
+
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wb_t);
+
+  #undef K
+  #define K SHA1C03
+
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wf_t);
+
+  // ---- EARLY EXIT LOGIK FUER 4 LANES ----
+  uint4 final_h0 = digest[0] + a;
+
+  // Wenn ALLE 4 Hashes ungleich 0 sind, kein Treffer moeglich
+  if (final_h0.s0 != 0 && final_h0.s1 != 0 && final_h0.s2 != 0 && final_h0.s3 != 0) return false;
+
+  // Mindestens ein Hash sieht vielversprechend aus, Rest berechnen
+  uint4 final_h1 = digest[1] + b;
+  uint4 final_h2 = digest[2] + c;
+  uint4 final_h3 = digest[3] + d;
+  uint4 final_h4 = digest[4] + e;
+
+  bool target_found = false;
+  if (final_h0.s0 == 0) target_found |= (0 == ((final_h0.s0 & td0) | (final_h1.s0 & td1) | (final_h2.s0 & td2) | (final_h3.s0 & td3) | (final_h4.s0 & td4)));
+  if (final_h0.s1 == 0) target_found |= (0 == ((final_h0.s1 & td0) | (final_h1.s1 & td1) | (final_h2.s1 & td2) | (final_h3.s1 & td3) | (final_h4.s1 & td4)));
+  if (final_h0.s2 == 0) target_found |= (0 == ((final_h0.s2 & td0) | (final_h1.s2 & td1) | (final_h2.s2 & td2) | (final_h3.s2 & td3) | (final_h4.s2 & td4)));
+  if (final_h0.s3 == 0) target_found |= (0 == ((final_h0.s3 & td0) | (final_h1.s3 & td1) | (final_h2.s3 & td2) | (final_h3.s3 & td3) | (final_h4.s3 & td4)));
+
+  return target_found;
+}
+)"
+
+R"(
+// Vektorisierte SHA-1 Funktion mit Partial Round Precomputation (Start ab Runde 8)
+bool sha1_64_check_vec4_r8 (
+    uint4 block[16], uint4 digest[5],
+    uint4 pre_a, uint4 pre_b, uint4 pre_c, uint4 pre_d, uint4 pre_e,
+    u32 td0, u32 td1, u32 td2, u32 td3, u32 td4) {
+
+  // Vorgespulten Zustand aus Runde 7 uebernehmen
+  uint4 a = pre_a;
+  uint4 b = pre_b;
+  uint4 c = pre_c;
+  uint4 d = pre_d;
+  uint4 e = pre_e;
+
+  // Alle 16 Woerter laden (w0-w7 fuer Message Expansion noetig)
+  uint4 w0_t = block[ 0];
+  uint4 w1_t = block[ 1];
+  uint4 w2_t = block[ 2];
+  uint4 w3_t = block[ 3];
+  uint4 w4_t = block[ 4];
+  uint4 w5_t = block[ 5];
+  uint4 w6_t = block[ 6];
+  uint4 w7_t = block[ 7];
+  uint4 w8_t = block[ 8];
+  uint4 w9_t = block[ 9];
+  uint4 wa_t = block[10];
+  uint4 wb_t = block[11];
+  uint4 wc_t = block[12];
+  uint4 wd_t = block[13];
+  uint4 we_t = block[14];
+  uint4 wf_t = block[15];
+
+  #undef K
+  #define K SHA1C00
+
+  // RUNDEN 0-7 UEBERSPRUNGEN (vorberechnet)
+
+  // Ab Runde 8
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w8_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w9_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wa_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, wb_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, wc_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, wd_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, we_t);
+  SHA1_STEP_VEC4 (SHA1_F0o, a, b, c, d, e, wf_t);
+
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F0o, e, a, b, c, d, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F0o, d, e, a, b, c, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F0o, c, d, e, a, b, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F0o, b, c, d, e, a, w3_t);
+
+  #undef K
+  #define K SHA1C01
+
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w7_t);
+
+  #undef K
+  #define K SHA1C02
+
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, a, b, c, d, e, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, e, a, b, c, d, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, d, e, a, b, c, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, c, d, e, a, b, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F2o, b, c, d, e, a, wb_t);
+
+  #undef K
+  #define K SHA1C03
+
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, wf_t);
+  w0_t = rotate ((wd_t ^ w8_t ^ w2_t ^ w0_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w0_t);
+  w1_t = rotate ((we_t ^ w9_t ^ w3_t ^ w1_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w1_t);
+  w2_t = rotate ((wf_t ^ wa_t ^ w4_t ^ w2_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w2_t);
+  w3_t = rotate ((w0_t ^ wb_t ^ w5_t ^ w3_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w3_t);
+  w4_t = rotate ((w1_t ^ wc_t ^ w6_t ^ w4_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w4_t);
+  w5_t = rotate ((w2_t ^ wd_t ^ w7_t ^ w5_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, w5_t);
+  w6_t = rotate ((w3_t ^ we_t ^ w8_t ^ w6_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, w6_t);
+  w7_t = rotate ((w4_t ^ wf_t ^ w9_t ^ w7_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, w7_t);
+  w8_t = rotate ((w5_t ^ w0_t ^ wa_t ^ w8_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, w8_t);
+  w9_t = rotate ((w6_t ^ w1_t ^ wb_t ^ w9_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, w9_t);
+  wa_t = rotate ((w7_t ^ w2_t ^ wc_t ^ wa_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wa_t);
+  wb_t = rotate ((w8_t ^ w3_t ^ wd_t ^ wb_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, a, b, c, d, e, wb_t);
+  wc_t = rotate ((w9_t ^ w4_t ^ we_t ^ wc_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, e, a, b, c, d, wc_t);
+  wd_t = rotate ((wa_t ^ w5_t ^ wf_t ^ wd_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, d, e, a, b, c, wd_t);
+  we_t = rotate ((wb_t ^ w6_t ^ w0_t ^ we_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, c, d, e, a, b, we_t);
+  wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), (uint4)(1u));
+  SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wf_t);
+
+  // ---- EARLY EXIT LOGIK FUER 4 LANES ----
+  uint4 final_h0 = digest[0] + a;
+
+  if (final_h0.s0 != 0 && final_h0.s1 != 0 && final_h0.s2 != 0 && final_h0.s3 != 0) return false;
+
+  uint4 final_h1 = digest[1] + b;
+  uint4 final_h2 = digest[2] + c;
+  uint4 final_h3 = digest[3] + d;
+  uint4 final_h4 = digest[4] + e;
+
+  bool target_found = false;
+  if (final_h0.s0 == 0) target_found |= (0 == ((final_h0.s0 & td0) | (final_h1.s0 & td1) | (final_h2.s0 & td2) | (final_h3.s0 & td3) | (final_h4.s0 & td4)));
+  if (final_h0.s1 == 0) target_found |= (0 == ((final_h0.s1 & td0) | (final_h1.s1 & td1) | (final_h2.s1 & td2) | (final_h3.s1 & td3) | (final_h4.s1 & td4)));
+  if (final_h0.s2 == 0) target_found |= (0 == ((final_h0.s2 & td0) | (final_h1.s2 & td1) | (final_h2.s2 & td2) | (final_h3.s2 & td3) | (final_h4.s2 & td4)));
+  if (final_h0.s3 == 0) target_found |= (0 == ((final_h0.s3 & td0) | (final_h1.s3 & td1) | (final_h2.s3 & td2) | (final_h3.s3 & td3) | (final_h4.s3 & td4)));
+
+  return target_found;
+}
+)"
+
+R"(
 ulong countertostring(char* dst, ulong c) {
   if (c==0) { *dst = '0'; return 1; }
   char* dst0 = dst;
@@ -393,12 +1224,30 @@ inline void increaseStringCounter(char *counterend) {
 // counterend should point to the least significant digit of the counter
 inline void increaseStringCounterSwapped(char *str, int endpos) {
   bool add = 1;
-  
+
   while (add) {
     uchar currentdigit = str[endpos] - '0';
     add = currentdigit == 9;
     str[endpos] = (currentdigit+1)%10 + '0';
     endpos--;
+  }
+}
+
+// Erhöht den String direkt im Big-Endian umgewandelten Array
+inline void increaseStringCounterBE(uchar* hashstring_bytes, int counter_end_idx) {
+  bool add = 1;
+  int current_idx = counter_end_idx;
+  while(add) {
+    // Wandle den logischen String-Index in den physischen Big-Endian Speicher-Index um
+    int phys_idx = (current_idx & ~3) | (3 - (current_idx & 3));
+    uchar currentdigit = hashstring_bytes[phys_idx];
+    if (currentdigit == '9') {
+      hashstring_bytes[phys_idx] = '0';
+      current_idx--;
+    } else {
+      hashstring_bytes[phys_idx] = currentdigit + 1;
+      add = 0;
+    }
   }
 }
 
@@ -455,54 +1304,126 @@ __kernel void TeamSpeakHasher (const ulong startcounter,
     hashstring[j] = swap_uint(hashstring[j]);
   }
 
-  ulong currentcounter = startcounter+gid*iterations;
-  u32 digest2[5];
-
-  ulong counterlen = countertostring(((uchar*)hashstring)+identity_length_snd_block,
-                                     currentcounter);
-  ((uchar*)hashstring)[identity_length_snd_block+counterlen] = 0x80;
-
-  *((ulong*)(((uchar*)hashstring)+56)) = swap_ulong(8*((ulong)identity_length+counterlen));
-
-  // we bring the length once to 32bit big endian form
-  hashstring[14] = swap_uint(hashstring[14]);
-  hashstring[15] = swap_uint(hashstring[15]);
-
   const int swapendianness_start = identity_length_snd_block/4;
 
   u32 targetdigest[5];
   compute_targetdigest(targetdigest, targetdifficulty);
-  //we swap it now, to avoid swapping in the loop
   for (int j=0; j<5; j++) { targetdigest[j] = swap_uint(targetdigest[j]); }
+
+  u32 td0 = targetdigest[0];
+  u32 td1 = targetdigest[1];
+  u32 td2 = targetdigest[2];
+  u32 td3 = targetdigest[3];
+  u32 td4 = targetdigest[4];
+
+  // --- 4-Lane Vektorisierung ---
+  ulong chunk = iterations / 4;
+
+  ulong currentcounter0 = startcounter + gid * iterations;
+  ulong currentcounter1 = startcounter + gid * iterations + chunk;
+  ulong currentcounter2 = startcounter + gid * iterations + 2 * chunk;
+  ulong currentcounter3 = startcounter + gid * iterations + 3 * chunk;
+
+  u32 hashstring0[16]; u32 hashstring1[16]; u32 hashstring2[16]; u32 hashstring3[16];
+
+  for(int i=0; i<16; i++) {
+    hashstring0[i] = hashstring[i]; hashstring1[i] = hashstring[i];
+    hashstring2[i] = hashstring[i]; hashstring3[i] = hashstring[i];
+  }
+
+  // Counter-Strings und Padding fuer alle 4 Lanes generieren
+  ulong clen0 = countertostring(((uchar*)hashstring0)+identity_length_snd_block, currentcounter0);
+  ((uchar*)hashstring0)[identity_length_snd_block+clen0] = 0x80;
+  *((ulong*)(((uchar*)hashstring0)+56)) = swap_ulong(8*((ulong)identity_length+clen0));
+
+  ulong clen1 = countertostring(((uchar*)hashstring1)+identity_length_snd_block, currentcounter1);
+  ((uchar*)hashstring1)[identity_length_snd_block+clen1] = 0x80;
+  *((ulong*)(((uchar*)hashstring1)+56)) = swap_ulong(8*((ulong)identity_length+clen1));
+
+  ulong clen2 = countertostring(((uchar*)hashstring2)+identity_length_snd_block, currentcounter2);
+  ((uchar*)hashstring2)[identity_length_snd_block+clen2] = 0x80;
+  *((ulong*)(((uchar*)hashstring2)+56)) = swap_ulong(8*((ulong)identity_length+clen2));
+
+  ulong clen3 = countertostring(((uchar*)hashstring3)+identity_length_snd_block, currentcounter3);
+  ((uchar*)hashstring3)[identity_length_snd_block+clen3] = 0x80;
+  *((ulong*)(((uchar*)hashstring3)+56)) = swap_ulong(8*((ulong)identity_length+clen3));
+
+  // Laenge einmalig zu Big-Endian
+  hashstring0[14] = swap_uint(hashstring0[14]); hashstring0[15] = swap_uint(hashstring0[15]);
+  hashstring1[14] = swap_uint(hashstring1[14]); hashstring1[15] = swap_uint(hashstring1[15]);
+  hashstring2[14] = swap_uint(hashstring2[14]); hashstring2[15] = swap_uint(hashstring2[15]);
+  hashstring3[14] = swap_uint(hashstring3[14]); hashstring3[15] = swap_uint(hashstring3[15]);
+
+  // Endianness-Swap fuer Counter-Bereich
+  for(int j=swapendianness_start; j<14; j++) {
+    hashstring0[j] = swap_uint(hashstring0[j]); hashstring1[j] = swap_uint(hashstring1[j]);
+    hashstring2[j] = swap_uint(hashstring2[j]); hashstring3[j] = swap_uint(hashstring3[j]);
+  }
+
+  // Vektor-Arrays vorbereiten
+  uint4 hashstring_vec[16];
+  uint4 digest1_vec[5];
+
+  for(int j=0; j<5; j++) {
+    digest1_vec[j] = (uint4)(digest1[j], digest1[j], digest1[j], digest1[j]);
+  }
+
+  // Statische Woerter einmalig vor der Schleife in den Vektor packen
+  for(int j=0; j < swapendianness_start; j++) {
+    hashstring_vec[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
+  }
+
+  // --- PARTIAL ROUND PRECOMPUTATION ---
+  // Die ersten 8 SHA-1 Runden sind komplett statisch (W0-W7 aendern sich nie)
+  // und werden hier einmalig pro Thread vorberechnet.
+  uint4 pre_a = digest1_vec[0];
+  uint4 pre_b = digest1_vec[1];
+  uint4 pre_c = digest1_vec[2];
+  uint4 pre_d = digest1_vec[3];
+  uint4 pre_e = digest1_vec[4];
+
+  uint4 pre_w0 = hashstring_vec[0];
+  uint4 pre_w1 = hashstring_vec[1];
+  uint4 pre_w2 = hashstring_vec[2];
+  uint4 pre_w3 = hashstring_vec[3];
+  uint4 pre_w4 = hashstring_vec[4];
+  uint4 pre_w5 = hashstring_vec[5];
+  uint4 pre_w6 = hashstring_vec[6];
+  uint4 pre_w7 = hashstring_vec[7];
+
+  #undef K
+  #define K SHA1C00
+
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_a, pre_b, pre_c, pre_d, pre_e, pre_w0);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_e, pre_a, pre_b, pre_c, pre_d, pre_w1);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_d, pre_e, pre_a, pre_b, pre_c, pre_w2);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_c, pre_d, pre_e, pre_a, pre_b, pre_w3);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_b, pre_c, pre_d, pre_e, pre_a, pre_w4);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_a, pre_b, pre_c, pre_d, pre_e, pre_w5);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_e, pre_a, pre_b, pre_c, pre_d, pre_w6);
+  SHA1_STEP_VEC4 (SHA1_F0o, pre_d, pre_e, pre_a, pre_b, pre_c, pre_w7);
+  // -------------------------------------
 
   bool target_found = false;
 
-  for (ulong it = 0; it<iterations; it++) {
-    for (int j=0; j<5; j++) { digest2[j] = digest1[j]; }
-
-    for (int j = swapendianness_start; j<14; j++) {
-      hashstring[j] = swap_uint(hashstring[j]);
+  for (ulong it = 0; it < chunk; it++) {
+    // Nur die hinteren Woerter packen, die sich durch den Counter aendern
+    for(int j = swapendianness_start; j < 16; j++) {
+      hashstring_vec[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
     }
 
-    
-    sha1_64(hashstring, digest2);
-    // we only consider security levels 32 or larger
-    // (this gives us a slight performance boost)
-    if (digest2[0] == 0) {
-      target_found |= 0 == ((digest2[0] & targetdigest[0]) |
-                            (digest2[1] & targetdigest[1]) |
-                            (digest2[2] & targetdigest[2]) |
-                            (digest2[3] & targetdigest[3]) |
-                            (digest2[4] & targetdigest[4]));
+    // Vorberechneten Zustand und rohen Mid-State uebergeben
+    if (sha1_64_check_vec4_r8(hashstring_vec, digest1_vec, pre_a, pre_b, pre_c, pre_d, pre_e, td0, td1, td2, td3, td4)) {
+      target_found = true;
     }
 
-    //we swap the endianness back to be able to increase the counter
-    for (int j = swapendianness_start; j<14; j++) {
-      hashstring[j] = swap_uint(hashstring[j]);
-    }
-
-    increaseStringCounter(((uchar*)hashstring)+identity_length_snd_block+counterlen-1);
+    // Counter separat erhoehen
+    increaseStringCounterBE((uchar*)hashstring0, identity_length_snd_block + clen0 - 1);
+    increaseStringCounterBE((uchar*)hashstring1, identity_length_snd_block + clen1 - 1);
+    increaseStringCounterBE((uchar*)hashstring2, identity_length_snd_block + clen2 - 1);
+    increaseStringCounterBE((uchar*)hashstring3, identity_length_snd_block + clen3 - 1);
   }
+
   results[gid] = target_found;
 }
 )"
@@ -549,58 +1470,112 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
     hashstring[j] = swap_uint(hashstring[j]);
   }
 
-  ulong currentcounter = startcounter+gid*iterations;
-  u32 digest2[5];
-
-  ulong counterlen = countertostring(((uchar*)hashstring)+identity_length_snd_block,
-                                     currentcounter);
-  ((uchar*)hashstring)[identity_length_snd_block+counterlen] = 0x80;
-
-  *((ulong*)(((uchar*)hashstring)+64+56)) = swap_ulong(8*((ulong)identity_length+counterlen));
-
-  // we bring the first word of the second block to 32bit big endian form
-  // note that this can only be a zero word, or 0x80,0x00,0x00,0x00
-  hashstring[16] = swap_uint(hashstring[16]);
-
-  // we bring the length once to 32bit big endian form
-  hashstring[16+14] = swap_uint(hashstring[16+14]);
-  hashstring[16+15] = swap_uint(hashstring[16+15]);
-
   const int swapendianness_start = identity_length_snd_block/4;
+
   u32 targetdigest[5];
   compute_targetdigest(targetdigest, targetdifficulty);
-  // we swap it now, to avoid swapping in the loop
   for (int j=0; j<5; j++) { targetdigest[j] = swap_uint(targetdigest[j]); }
+
+  u32 td0 = targetdigest[0];
+  u32 td1 = targetdigest[1];
+  u32 td2 = targetdigest[2];
+  u32 td3 = targetdigest[3];
+  u32 td4 = targetdigest[4];
+
+  // --- 4-Lane Vektorisierung ---
+  ulong chunk = iterations / 4;
+
+  ulong currentcounter0 = startcounter + gid * iterations;
+  ulong currentcounter1 = startcounter + gid * iterations + chunk;
+  ulong currentcounter2 = startcounter + gid * iterations + 2 * chunk;
+  ulong currentcounter3 = startcounter + gid * iterations + 3 * chunk;
+
+  u32 hashstring0[32]; u32 hashstring1[32]; u32 hashstring2[32]; u32 hashstring3[32];
+
+  for(int i=0; i<32; i++) {
+    hashstring0[i] = hashstring[i]; hashstring1[i] = hashstring[i];
+    hashstring2[i] = hashstring[i]; hashstring3[i] = hashstring[i];
+  }
+
+  // Counter-Strings und Padding fuer alle 4 Lanes generieren
+  ulong clen0 = countertostring(((uchar*)hashstring0)+identity_length_snd_block, currentcounter0);
+  ((uchar*)hashstring0)[identity_length_snd_block+clen0] = 0x80;
+  *((ulong*)(((uchar*)hashstring0)+64+56)) = swap_ulong(8*((ulong)identity_length+clen0));
+
+  ulong clen1 = countertostring(((uchar*)hashstring1)+identity_length_snd_block, currentcounter1);
+  ((uchar*)hashstring1)[identity_length_snd_block+clen1] = 0x80;
+  *((ulong*)(((uchar*)hashstring1)+64+56)) = swap_ulong(8*((ulong)identity_length+clen1));
+
+  ulong clen2 = countertostring(((uchar*)hashstring2)+identity_length_snd_block, currentcounter2);
+  ((uchar*)hashstring2)[identity_length_snd_block+clen2] = 0x80;
+  *((ulong*)(((uchar*)hashstring2)+64+56)) = swap_ulong(8*((ulong)identity_length+clen2));
+
+  ulong clen3 = countertostring(((uchar*)hashstring3)+identity_length_snd_block, currentcounter3);
+  ((uchar*)hashstring3)[identity_length_snd_block+clen3] = 0x80;
+  *((ulong*)(((uchar*)hashstring3)+64+56)) = swap_ulong(8*((ulong)identity_length+clen3));
+
+  // Erstes Wort des zweiten Blocks zu Big-Endian (nur 0x00000000 oder 0x80000000)
+  hashstring0[16] = swap_uint(hashstring0[16]); hashstring1[16] = swap_uint(hashstring1[16]);
+  hashstring2[16] = swap_uint(hashstring2[16]); hashstring3[16] = swap_uint(hashstring3[16]);
+
+  // Laenge einmalig zu Big-Endian
+  hashstring0[30] = swap_uint(hashstring0[30]); hashstring0[31] = swap_uint(hashstring0[31]);
+  hashstring1[30] = swap_uint(hashstring1[30]); hashstring1[31] = swap_uint(hashstring1[31]);
+  hashstring2[30] = swap_uint(hashstring2[30]); hashstring2[31] = swap_uint(hashstring2[31]);
+  hashstring3[30] = swap_uint(hashstring3[30]); hashstring3[31] = swap_uint(hashstring3[31]);
+
+  // Endianness-Swap fuer Counter-Bereich im ersten Block
+  for(int j=swapendianness_start; j<16; j++) {
+    hashstring0[j] = swap_uint(hashstring0[j]); hashstring1[j] = swap_uint(hashstring1[j]);
+    hashstring2[j] = swap_uint(hashstring2[j]); hashstring3[j] = swap_uint(hashstring3[j]);
+  }
+
+  // Vektor-Arrays vorbereiten (Block 1: 16 Woerter, Block 2: 16 Woerter)
+  uint4 hashstring_vec_b1[16];
+  uint4 hashstring_vec_b2[16];
+  uint4 digest1_vec[5];
+
+  for(int j=0; j<5; j++) {
+    digest1_vec[j] = (uint4)(digest1[j], digest1[j], digest1[j], digest1[j]);
+  }
+
+  // Statische Woerter von Block 1 einmalig packen
+  for(int j=0; j < swapendianness_start; j++) {
+    hashstring_vec_b1[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
+  }
+
+  // Block 2 statische Woerter packen (Woerter 16-31 -> Index 0-15 im Block2-Vektor)
+  // Wort 16 (0x80-Padding) und Woerter 17-29 (Nullen) und 30-31 (Laenge) aendern sich nicht
+  for(int j=0; j<16; j++) {
+    hashstring_vec_b2[j] = (uint4)(hashstring0[16+j], hashstring1[16+j], hashstring2[16+j], hashstring3[16+j]);
+  }
 
   bool target_found = false;
 
-  for (ulong it = 0; it<iterations; it++) {
-    for (int j=0; j<5; j++) { digest2[j] = digest1[j]; }
+  for (ulong it = 0; it < chunk; it++) {
+    uint4 digest2_vec[5];
+    for (int j=0; j<5; j++) { digest2_vec[j] = digest1_vec[j]; }
 
-    for (int j = swapendianness_start; j<16; j++) {
-      hashstring[j] = swap_uint(hashstring[j]);
+    // Block 1: Nur die hinteren Woerter neu packen (Counter-Bereich)
+    for(int j=swapendianness_start; j < 16; j++) {
+      hashstring_vec_b1[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
     }
 
-    sha1_64(hashstring, digest2);
-    sha1_64(((u32*)hashstring)+16, digest2);
+    // Volle SHA1-Kompression fuer Block 1 (liefert Mid-State)
+    sha1_64_vec4(hashstring_vec_b1, digest2_vec);
 
-    // we only consider security levels 32 or larger
-    // (this gives us a slight performance boost)
-    if (digest2[0]==0) {
-      target_found |= 0 == ((digest2[0] & targetdigest[0]) |
-                            (digest2[1] & targetdigest[1]) |
-                            (digest2[2] & targetdigest[2]) |
-                            (digest2[3] & targetdigest[3]) |
-                            (digest2[4] & targetdigest[4]));
+    // Early-Exit Check auf Block 2
+    if (sha1_64_check_vec4(hashstring_vec_b2, digest2_vec, td0, td1, td2, td3, td4)) {
+      target_found = true;
     }
 
-    // we swap the endianness back to be able to increase the counter
-    for (int j = swapendianness_start; j<16; j++) {
-      hashstring[j] = swap_uint(hashstring[j]);
-    }
-
-    increaseStringCounter(((uchar*)hashstring)+identity_length_snd_block+counterlen-1);
+    // Counter separat erhoehen
+    increaseStringCounterBE((uchar*)hashstring0, identity_length_snd_block + clen0 - 1);
+    increaseStringCounterBE((uchar*)hashstring1, identity_length_snd_block + clen1 - 1);
+    increaseStringCounterBE((uchar*)hashstring2, identity_length_snd_block + clen2 - 1);
+    increaseStringCounterBE((uchar*)hashstring3, identity_length_snd_block + clen3 - 1);
   }
+
   results[gid] = target_found;
 }
 )";
