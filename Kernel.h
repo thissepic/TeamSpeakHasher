@@ -708,7 +708,7 @@ bool sha1_64_check (u32 block[16], u32 digest[5], u32 td0, u32 td1, u32 td2, u32
 
 R"(
 // Vektorisierte Early-Exit SHA-1 Funktion (4 Hashes parallel)
-bool sha1_64_check_vec4 (uint4 block[16], uint4 digest[5], u32 td0, u32 td1, u32 td2, u32 td3, u32 td4) {
+bool sha1_64_check_vec4 (uint4 block[16], uint4 digest[5], uchar targetdifficulty) {
   uint4 a = digest[0];
   uint4 b = digest[1];
   uint4 c = digest[2];
@@ -893,25 +893,28 @@ bool sha1_64_check_vec4 (uint4 block[16], uint4 digest[5], u32 td0, u32 td1, u32
   wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), 1u);
   SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wf_t);
 
-  // ---- EARLY EXIT LOGIK FUER 4 LANES ----
+  // ---- CLZ()-BASIERTE EARLY EXIT LOGIK FUER 4 LANES ----
   uint4 final_h0 = digest[0] + a;
 
-  // Wenn ALLE 4 Hashes ungleich 0 sind, kein Treffer moeglich
-  if (final_h0.s0 != 0 && final_h0.s1 != 0 && final_h0.s2 != 0 && final_h0.s3 != 0) return false;
+  // Fuehrende Nullbits pro Lane zaehlen (ein Taktzyklus per clz!)
+  uint z0 = clz(final_h0.s0);
+  uint z1 = clz(final_h0.s1);
+  uint z2 = clz(final_h0.s2);
+  uint z3 = clz(final_h0.s3);
 
-  // Mindestens ein Hash sieht vielversprechend aus, Rest berechnen
+  // Quick-Reject: Wenn kein Lane genug Nullen im ersten Wort hat
+  uint td_cap = min((uint)targetdifficulty, 32u);
+  if (max(max(z0, z1), max(z2, z3)) < td_cap) return false;
+
+  // Vielversprechend - zweites Wort pruefen wenn noetig
   uint4 final_h1 = digest[1] + b;
-  uint4 final_h2 = digest[2] + c;
-  uint4 final_h3 = digest[3] + d;
-  uint4 final_h4 = digest[4] + e;
+  if (z0 == 32) z0 += clz(final_h1.s0);
+  if (z1 == 32) z1 += clz(final_h1.s1);
+  if (z2 == 32) z2 += clz(final_h1.s2);
+  if (z3 == 32) z3 += clz(final_h1.s3);
 
-  bool target_found = false;
-  if (final_h0.s0 == 0) target_found |= (0 == ((final_h0.s0 & td0) | (final_h1.s0 & td1) | (final_h2.s0 & td2) | (final_h3.s0 & td3) | (final_h4.s0 & td4)));
-  if (final_h0.s1 == 0) target_found |= (0 == ((final_h0.s1 & td0) | (final_h1.s1 & td1) | (final_h2.s1 & td2) | (final_h3.s1 & td3) | (final_h4.s1 & td4)));
-  if (final_h0.s2 == 0) target_found |= (0 == ((final_h0.s2 & td0) | (final_h1.s2 & td1) | (final_h2.s2 & td2) | (final_h3.s2 & td3) | (final_h4.s2 & td4)));
-  if (final_h0.s3 == 0) target_found |= (0 == ((final_h0.s3 & td0) | (final_h1.s3 & td1) | (final_h2.s3 & td2) | (final_h3.s3 & td3) | (final_h4.s3 & td4)));
-
-  return target_found;
+  return (z0 >= targetdifficulty) || (z1 >= targetdifficulty) ||
+         (z2 >= targetdifficulty) || (z3 >= targetdifficulty);
 }
 )"
 
@@ -920,7 +923,7 @@ R"(
 bool sha1_64_check_vec4_r8 (
     uint4 block[16], uint4 digest[5],
     uint4 pre_a, uint4 pre_b, uint4 pre_c, uint4 pre_d, uint4 pre_e,
-    u32 td0, u32 td1, u32 td2, u32 td3, u32 td4) {
+    uchar targetdifficulty) {
 
   // Vorgespulten Zustand aus Runde 7 uebernehmen
   uint4 a = pre_a;
@@ -1103,23 +1106,28 @@ bool sha1_64_check_vec4_r8 (
   wf_t = rotate ((wc_t ^ w7_t ^ w1_t ^ wf_t), (uint4)(1u));
   SHA1_STEP_VEC4 (SHA1_F1, b, c, d, e, a, wf_t);
 
-  // ---- EARLY EXIT LOGIK FUER 4 LANES ----
+  // ---- CLZ()-BASIERTE EARLY EXIT LOGIK FUER 4 LANES ----
   uint4 final_h0 = digest[0] + a;
 
-  if (final_h0.s0 != 0 && final_h0.s1 != 0 && final_h0.s2 != 0 && final_h0.s3 != 0) return false;
+  // Fuehrende Nullbits pro Lane zaehlen (ein Taktzyklus per clz!)
+  uint z0 = clz(final_h0.s0);
+  uint z1 = clz(final_h0.s1);
+  uint z2 = clz(final_h0.s2);
+  uint z3 = clz(final_h0.s3);
 
+  // Quick-Reject: Wenn kein Lane genug Nullen im ersten Wort hat
+  uint td_cap = min((uint)targetdifficulty, 32u);
+  if (max(max(z0, z1), max(z2, z3)) < td_cap) return false;
+
+  // Vielversprechend - zweites Wort pruefen wenn noetig
   uint4 final_h1 = digest[1] + b;
-  uint4 final_h2 = digest[2] + c;
-  uint4 final_h3 = digest[3] + d;
-  uint4 final_h4 = digest[4] + e;
+  if (z0 == 32) z0 += clz(final_h1.s0);
+  if (z1 == 32) z1 += clz(final_h1.s1);
+  if (z2 == 32) z2 += clz(final_h1.s2);
+  if (z3 == 32) z3 += clz(final_h1.s3);
 
-  bool target_found = false;
-  if (final_h0.s0 == 0) target_found |= (0 == ((final_h0.s0 & td0) | (final_h1.s0 & td1) | (final_h2.s0 & td2) | (final_h3.s0 & td3) | (final_h4.s0 & td4)));
-  if (final_h0.s1 == 0) target_found |= (0 == ((final_h0.s1 & td0) | (final_h1.s1 & td1) | (final_h2.s1 & td2) | (final_h3.s1 & td3) | (final_h4.s1 & td4)));
-  if (final_h0.s2 == 0) target_found |= (0 == ((final_h0.s2 & td0) | (final_h1.s2 & td1) | (final_h2.s2 & td2) | (final_h3.s2 & td3) | (final_h4.s2 & td4)));
-  if (final_h0.s3 == 0) target_found |= (0 == ((final_h0.s3 & td0) | (final_h1.s3 & td1) | (final_h2.s3 & td2) | (final_h3.s3 & td3) | (final_h4.s3 & td4)));
-
-  return target_found;
+  return (z0 >= targetdifficulty) || (z1 >= targetdifficulty) ||
+         (z2 >= targetdifficulty) || (z3 >= targetdifficulty);
 }
 )"
 
@@ -1306,16 +1314,6 @@ __kernel void TeamSpeakHasher (const ulong startcounter,
 
   const int swapendianness_start = identity_length_snd_block/4;
 
-  u32 targetdigest[5];
-  compute_targetdigest(targetdigest, targetdifficulty);
-  for (int j=0; j<5; j++) { targetdigest[j] = swap_uint(targetdigest[j]); }
-
-  u32 td0 = targetdigest[0];
-  u32 td1 = targetdigest[1];
-  u32 td2 = targetdigest[2];
-  u32 td3 = targetdigest[3];
-  u32 td4 = targetdigest[4];
-
   // --- 4-Lane Vektorisierung ---
   ulong chunk = iterations / 4;
 
@@ -1360,6 +1358,10 @@ __kernel void TeamSpeakHasher (const ulong startcounter,
     hashstring2[j] = swap_uint(hashstring2[j]); hashstring3[j] = swap_uint(hashstring3[j]);
   }
 
+  // Berechne das letzte Wort, das sich durch den Counter aendert
+  int max_clen = (int)max(max(clen0, clen1), max(clen2, clen3));
+  int counter_word_end = (identity_length_snd_block + max_clen - 1) / 4;
+
   // Vektor-Arrays vorbereiten
   uint4 hashstring_vec[16];
   uint4 digest1_vec[5];
@@ -1370,6 +1372,11 @@ __kernel void TeamSpeakHasher (const ulong startcounter,
 
   // Statische Woerter einmalig vor der Schleife in den Vektor packen
   for(int j=0; j < swapendianness_start; j++) {
+    hashstring_vec[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
+  }
+
+  // Statische Woerter NACH dem Counter einmalig packen (0x80, Nullen, Laenge)
+  for(int j=counter_word_end + 1; j < 16; j++) {
     hashstring_vec[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
   }
 
@@ -1407,13 +1414,13 @@ __kernel void TeamSpeakHasher (const ulong startcounter,
   bool target_found = false;
 
   for (ulong it = 0; it < chunk; it++) {
-    // Nur die hinteren Woerter packen, die sich durch den Counter aendern
-    for(int j = swapendianness_start; j < 16; j++) {
+    // NUR die Woerter packen, in denen der Counter tatsaechlich liegt
+    for(int j = swapendianness_start; j <= counter_word_end; j++) {
       hashstring_vec[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
     }
 
     // Vorberechneten Zustand und rohen Mid-State uebergeben
-    if (sha1_64_check_vec4_r8(hashstring_vec, digest1_vec, pre_a, pre_b, pre_c, pre_d, pre_e, td0, td1, td2, td3, td4)) {
+    if (sha1_64_check_vec4_r8(hashstring_vec, digest1_vec, pre_a, pre_b, pre_c, pre_d, pre_e, targetdifficulty)) {
       target_found = true;
     }
 
@@ -1472,16 +1479,6 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
 
   const int swapendianness_start = identity_length_snd_block/4;
 
-  u32 targetdigest[5];
-  compute_targetdigest(targetdigest, targetdifficulty);
-  for (int j=0; j<5; j++) { targetdigest[j] = swap_uint(targetdigest[j]); }
-
-  u32 td0 = targetdigest[0];
-  u32 td1 = targetdigest[1];
-  u32 td2 = targetdigest[2];
-  u32 td3 = targetdigest[3];
-  u32 td4 = targetdigest[4];
-
   // --- 4-Lane Vektorisierung ---
   ulong chunk = iterations / 4;
 
@@ -1530,6 +1527,10 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
     hashstring2[j] = swap_uint(hashstring2[j]); hashstring3[j] = swap_uint(hashstring3[j]);
   }
 
+  // Berechne das letzte Wort in Block 1, das sich durch den Counter aendert
+  int max_clen = (int)max(max(clen0, clen1), max(clen2, clen3));
+  int counter_word_end = min((int)((identity_length_snd_block + max_clen - 1) / 4), 15);
+
   // Vektor-Arrays vorbereiten (Block 1: 16 Woerter, Block 2: 16 Woerter)
   uint4 hashstring_vec_b1[16];
   uint4 hashstring_vec_b2[16];
@@ -1541,6 +1542,11 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
 
   // Statische Woerter von Block 1 einmalig packen
   for(int j=0; j < swapendianness_start; j++) {
+    hashstring_vec_b1[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
+  }
+
+  // Statische Woerter NACH dem Counter in Block 1 einmalig packen
+  for(int j=counter_word_end + 1; j < 16; j++) {
     hashstring_vec_b1[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
   }
 
@@ -1556,8 +1562,8 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
     uint4 digest2_vec[5];
     for (int j=0; j<5; j++) { digest2_vec[j] = digest1_vec[j]; }
 
-    // Block 1: Nur die hinteren Woerter neu packen (Counter-Bereich)
-    for(int j=swapendianness_start; j < 16; j++) {
+    // Block 1: NUR die Woerter packen, in denen der Counter tatsaechlich liegt
+    for(int j=swapendianness_start; j <= counter_word_end; j++) {
       hashstring_vec_b1[j] = (uint4)(hashstring0[j], hashstring1[j], hashstring2[j], hashstring3[j]);
     }
 
@@ -1565,7 +1571,7 @@ __kernel void TeamSpeakHasher2 (const ulong startcounter,
     sha1_64_vec4(hashstring_vec_b1, digest2_vec);
 
     // Early-Exit Check auf Block 2
-    if (sha1_64_check_vec4(hashstring_vec_b2, digest2_vec, td0, td1, td2, td3, td4)) {
+    if (sha1_64_check_vec4(hashstring_vec_b2, digest2_vec, targetdifficulty)) {
       target_found = true;
     }
 
