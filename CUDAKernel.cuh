@@ -23,84 +23,12 @@ SOFTWARE.
 #define CUDAKERNEL_CUH_
 
 // ============================================================================
-// Custom uint4 type for CUDA (tsh_uint4)
-// ============================================================================
-
-struct tsh_uint4
-{
-	unsigned int x, y, z, w;
-};
-
-__device__ __forceinline__ tsh_uint4 make_tsh_uint4(unsigned int x, unsigned int y, unsigned int z, unsigned int w)
-{
-	tsh_uint4 r; r.x = x; r.y = y; r.z = z; r.w = w; return r;
-}
-
-__device__ __forceinline__ tsh_uint4 operator+(const tsh_uint4& a, const tsh_uint4& b)
-{
-	tsh_uint4 r;
-	r.x = a.x + b.x; r.y = a.y + b.y; r.z = a.z + b.z; r.w = a.w + b.w;
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 operator^(const tsh_uint4& a, const tsh_uint4& b)
-{
-	tsh_uint4 r;
-	r.x = a.x ^ b.x; r.y = a.y ^ b.y; r.z = a.z ^ b.z; r.w = a.w ^ b.w;
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 operator&(const tsh_uint4& a, const tsh_uint4& b)
-{
-	tsh_uint4 r;
-	r.x = a.x & b.x; r.y = a.y & b.y; r.z = a.z & b.z; r.w = a.w & b.w;
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 operator|(const tsh_uint4& a, const tsh_uint4& b)
-{
-	tsh_uint4 r;
-	r.x = a.x | b.x; r.y = a.y | b.y; r.z = a.z | b.z; r.w = a.w | b.w;
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 operator~(const tsh_uint4& a)
-{
-	tsh_uint4 r;
-	r.x = ~a.x; r.y = ~a.y; r.z = ~a.z; r.w = ~a.w;
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4& operator+=(tsh_uint4& a, const tsh_uint4& b)
-{
-	a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w;
-	return a;
-}
-
-__device__ __forceinline__ tsh_uint4 make_tsh_uint4(unsigned int v)
-{
-	tsh_uint4 r;
-	r.x = v; r.y = v; r.z = v; r.w = v;
-	return r;
-}
-
-// ============================================================================
 // Rotation primitives
 // ============================================================================
 
 __device__ __forceinline__ unsigned int rotl32(unsigned int val, unsigned int n)
 {
 	return __funnelshift_l(val, val, n);
-}
-
-__device__ __forceinline__ tsh_uint4 rotl32_vec4(tsh_uint4 v, unsigned int n)
-{
-	tsh_uint4 r;
-	r.x = rotl32(v.x, n);
-	r.y = rotl32(v.y, n);
-	r.z = rotl32(v.z, n);
-	r.w = rotl32(v.w, n);
-	return r;
 }
 
 // ============================================================================
@@ -150,40 +78,6 @@ __device__ __forceinline__ unsigned int lop3_0xE8(unsigned int a, unsigned int b
 }
 
 // ============================================================================
-// Vectorized LOP3 wrappers for tsh_uint4 (component-wise)
-// ============================================================================
-
-__device__ __forceinline__ tsh_uint4 SHA1_F0_vec4(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
-{
-	tsh_uint4 r;
-	r.x = lop3_0xCA(x.x, y.x, z.x);
-	r.y = lop3_0xCA(x.y, y.y, z.y);
-	r.z = lop3_0xCA(x.z, y.z, z.z);
-	r.w = lop3_0xCA(x.w, y.w, z.w);
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 SHA1_F1_vec4(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
-{
-	tsh_uint4 r;
-	r.x = lop3_0x96(x.x, y.x, z.x);
-	r.y = lop3_0x96(x.y, y.y, z.y);
-	r.z = lop3_0x96(x.z, y.z, z.z);
-	r.w = lop3_0x96(x.w, y.w, z.w);
-	return r;
-}
-
-__device__ __forceinline__ tsh_uint4 SHA1_F2_vec4(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
-{
-	tsh_uint4 r;
-	r.x = lop3_0xE8(x.x, y.x, z.x);
-	r.y = lop3_0xE8(x.y, y.y, z.y);
-	r.z = lop3_0xE8(x.z, y.z, z.z);
-	r.w = lop3_0xE8(x.w, y.w, z.w);
-	return r;
-}
-
-// ============================================================================
 // Overloaded SHA-1 round functions (scalar + vector dispatch)
 // ============================================================================
 
@@ -203,40 +97,46 @@ __device__ __forceinline__ unsigned int SHA1_F2o(unsigned int x, unsigned int y,
 	return lop3_0xE8(x, y, z);
 }
 
-// Vector overloads
-__device__ __forceinline__ tsh_uint4 SHA1_F0o(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
-{
-	return SHA1_F0_vec4(x, y, z);
-}
+// ============================================================================
+// IMAD helper: integer add via FMAHeavy pipe (instead of INT/ALU pipe)
+// ============================================================================
 
-__device__ __forceinline__ tsh_uint4 SHA1_F1(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
+// On Ada Lovelace each SM sub-partition has 3 execution pipes:
+//   FMAHeavy (IMAD, FP32 FMA)  |  FMALite (FP32 only)  |  INT (IADD3, LOP3, SHF, LEA)
+// A pure-integer kernel leaves FMAHeavy and FMALite completely idle.
+// By routing some additions through IMAD (a*1+b), we spread load across two pipes.
+__device__ __forceinline__ unsigned int imad_add(unsigned int a, unsigned int b)
 {
-	return SHA1_F1_vec4(x, y, z);
-}
-
-__device__ __forceinline__ tsh_uint4 SHA1_F2o(tsh_uint4 x, tsh_uint4 y, tsh_uint4 z)
-{
-	return SHA1_F2_vec4(x, y, z);
+	unsigned int r;
+	asm("mad.lo.u32 %0, %1, 1, %2;" : "=r"(r) : "r"(a), "r"(b));
+	return r;
 }
 
 // ============================================================================
 // SHA-1 step macros
 // ============================================================================
 
-#define SHA1_STEP(f, a, b, c, d, e, x)    \
-{                                          \
-  e += x + (unsigned int)(K);             \
-  e += f(b, c, d) + rotl32(a, 5u);       \
-  b  = rotl32(b, 30u);                    \
-}
-
-#define SHA1_STEP_VEC4(f, a, b, c, d, e, x)  \
-{                                             \
-  e += make_tsh_uint4(K);                     \
-  e += x;                                     \
-  e += f(b, c, d);                            \
-  e += rotl32_vec4(a, 5u);                    \
-  b  = rotl32_vec4(b, 30u);                   \
+// IMAD pipe-balancing strategy:
+//   1. frot = f(b,c,d) + rotl(a,5)  via IMAD  → FMAHeavy (OFF critical path)
+//   2. e   += x + K                 via IADD3  → INT      (ON critical path, 4 cyc)
+//   3. e    = e + frot              via IMAD   → FMAHeavy (ON critical path, 4 cyc)
+//   4. b    = rotl(b, 30)           via SHF    → INT      (independent)
+//
+// Critical path: e_prev → IADD3(4) → IMAD(4) = 8 cycles per round.
+// Previous version: e_prev → IADD3(4) → LEA.HI(4) → IADD3(4) = 12 cycles.
+//
+// Key insight: by computing frot via IMAD on FMAHeavy, ptxas CANNOT fuse
+// the rotation with the addition into LEA.HI (which is INT-pipe only).
+// The rotation stays as a separate SHF, and frot is ready before the
+// critical path needs it (since it's independent of e).
+//
+// Pipe balance per step: 3 INT (LOP3 + SHF + IADD3 + SHF) / 2 FMAHeavy (IMAD + IMAD)
+#define SHA1_STEP(f, a, b, c, d, e, x)                     \
+{                                                           \
+  unsigned int frot = imad_add(f(b, c, d), rotl32(a, 5u)); \
+  e += x + (unsigned int)(K);                               \
+  e  = imad_add(e, frot);                                   \
+  b  = rotl32(b, 30u);                                      \
 }
 
 // ============================================================================
