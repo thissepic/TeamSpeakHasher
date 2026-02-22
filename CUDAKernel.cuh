@@ -113,28 +113,51 @@ __device__ __forceinline__ unsigned int imad_add(unsigned int a, unsigned int b)
 }
 
 // ============================================================================
+// 2-operand ADD helper: dispatches on INT + Unified pipes (128 ops/cycle)
+// ============================================================================
+
+// On Ada Lovelace, 2-operand add.s32 has 128 ops/cycle throughput (vs 64 for
+// 3-operand IADD3), because it can dispatch on the Unified pipe in addition
+// to the INT pipe. By pre-computing w[i]+K as a separate 2-operand ADD, we
+// replace the 3-operand IADD3 (e += x + K) with two 2-operand ADDs that can
+// spill onto the otherwise idle Unified pipe.
+__device__ __forceinline__ unsigned int add2(unsigned int a, unsigned int b)
+{
+	unsigned int r;
+	asm("add.s32 %0, %1, %2;" : "=r"(r) : "r"(a), "r"(b));
+	return r;
+}
+
+// ============================================================================
 // SHA-1 step macros
 // ============================================================================
 
-// IMAD pipe-balancing strategy:
-//   1. frot = f(b,c,d) + rotl(a,5)  via IMAD  → FMAHeavy (OFF critical path)
-//   2. e   += x + K                 via IADD3  → INT      (ON critical path, 4 cyc)
-//   3. e    = e + frot              via IMAD   → FMAHeavy (ON critical path, 4 cyc)
-//   4. b    = rotl(b, 30)           via SHF    → INT      (independent)
+// IMAD + ADD2 pipe-balancing strategy:
+//   1. frot = f(b,c,d) + rotl(a,5)  via IMAD    → FMAHeavy    (OFF critical path)
+//   2. wx   = x + K                 via add.s32  → INT+Unified (OFF critical path)
+//   3. e   += wx                    via add.s32  → INT+Unified (ON critical path, 4 cyc)
+//   4. e    = e + frot              via IMAD     → FMAHeavy    (ON critical path, 4 cyc)
+//   5. b    = rotl(b, 30)           via SHF      → INT         (independent)
 //
-// Critical path: e_prev → IADD3(4) → IMAD(4) = 8 cycles per round.
-// Previous version: e_prev → IADD3(4) → LEA.HI(4) → IADD3(4) = 12 cycles.
+// Critical path: e_prev → ADD(4) → IMAD(4) = 8 cycles per round (unchanged).
 //
-// Key insight: by computing frot via IMAD on FMAHeavy, ptxas CANNOT fuse
-// the rotation with the addition into LEA.HI (which is INT-pipe only).
-// The rotation stays as a separate SHF, and frot is ready before the
-// critical path needs it (since it's independent of e).
+// Key change: the old 3-operand IADD3 (e += x + K) is split into two
+// 2-operand add.s32 instructions. On Ada Lovelace, add.s32 has 128 ops/cycle
+// throughput (INT + Unified pipes) vs. IADD3's 64 ops/cycle (INT-only).
+// This reduces INT-pipe pressure by offloading ADDs to the Unified pipe.
 //
-// Pipe balance per step: 3 INT (LOP3 + SHF + IADD3 + SHF) / 2 FMAHeavy (IMAD + IMAD)
+// Pipe balance per step:
+//   INT-only:    LOP3 + SHF + SHF           = 3 ops  (64 ops/cycle)
+//   INT+Unified: ADD(wx) + ADD(e+=wx)        = 2 ops  (128 ops/cycle each)
+//   FMAHeavy:    IMAD(frot) + IMAD(e+=frot)  = 2 ops  (64 ops/cycle)
+//
+// Previous: 4 INT-only (LOP3+SHF+IADD3+SHF) + 2 FMAHeavy
+// Now:      3 INT-only + 2 INT+Unified + 2 FMAHeavy
 #define SHA1_STEP(f, a, b, c, d, e, x)                     \
 {                                                           \
   unsigned int frot = imad_add(f(b, c, d), rotl32(a, 5u)); \
-  e += x + (unsigned int)(K);                               \
+  unsigned int wx = add2((unsigned int)(x), (unsigned int)(K)); \
+  e  = add2(e, wx);                                         \
   e  = imad_add(e, frot);                                   \
   b  = rotl32(b, 30u);                                      \
 }
@@ -210,68 +233,6 @@ __device__ __forceinline__ void increaseStringCounterBE(unsigned char* hashstrin
 		{
 			hashstring_bytes[phys_idx] = currentdigit + 1;
 			add = 0;
-		}
-	}
-}
-
-__device__ __forceinline__ void inc_ascii_reg(
-	unsigned int& w8, unsigned int& w9, unsigned int& wa, unsigned int& wb,
-	unsigned int& wc, unsigned int& wd, unsigned int& we, unsigned int& wf,
-	int last_idx)
-{
-	bool carry = true;
-
-	// Wir wandern durch die 8 Z�hler-W�rter (von hinten nach vorne)
-#pragma unroll
-	for (int i = 15; i >= 8; i--)
-	{
-		// Wort nur anfassen, wenn der Z�hler �berhaupt so weit reicht
-		if (i * 4 <= last_idx && carry)
-		{
-			unsigned int w;
-			if (i == 15) w = wf;
-			else if (i == 14) w = we;
-			else if (i == 13) w = wd;
-			else if (i == 12) w = wc;
-			else if (i == 11) w = wb;
-			else if (i == 10) w = wa;
-			else if (i == 9)  w = w9;
-			else if (i == 8)  w = w8;
-
-			// Die 4 Bytes innerhalb des 32-Bit Wortes von hinten nach vorne pr�fen
-		#pragma unroll
-			for (int b = 3; b >= 0; b--)
-			{
-				int global_b = i * 4 + b; // Berechnet den absoluten String-Index
-
-				if (global_b <= last_idx && carry)
-				{
-					unsigned int shift = b * 8;
-					unsigned int val = (w >> shift) & 0xFF; // Isoliert das Byte
-
-					if (val == '9')
-					{
-						// Overflow auf '0', carry bleibt true f�r das n�chste Byte
-						w = (w & ~(0xFF << shift)) | ('0' << shift);
-					}
-					else
-					{
-						// Z�hler um 1 erh�hen, carry beenden
-						w += (1 << shift);
-						carry = false;
-					}
-				}
-			}
-
-			// Zur�ck in das richtige Register schreiben
-			if (i == 15) wf = w;
-			else if (i == 14) we = w;
-			else if (i == 13) wd = w;
-			else if (i == 12) wc = w;
-			else if (i == 11) wb = w;
-			else if (i == 10) wa = w;
-			else if (i == 9)  w9 = w;
-			else if (i == 8)  w8 = w;
 		}
 	}
 }
@@ -875,7 +836,7 @@ __device__ __forceinline__ bool sha1_64_check_scalar_r8(
 // CUDA kernel: single SHA-1 block (fast phase) __launch_bounds__(256) 
 // ============================================================================
 
-__global__ void TeamSpeakHasher_cuda(
+__global__ __launch_bounds__(64) void TeamSpeakHasher_cuda(
 	unsigned long long startcounter,
 	unsigned int iterations,
 	unsigned char targetdifficulty,
@@ -993,14 +954,16 @@ __global__ void TeamSpeakHasher_cuda(
 			identity_length_snd_block + clen - 1);
 	}
 
-	results[gid] = target_found;
+	if (target_found) { 
+		results[gid] = target_found;
+	}
 }
 
 // ============================================================================
 // CUDA kernel: double SHA-1 block (slow phase)
 // ============================================================================
 
-__global__ void TeamSpeakHasher2_cuda(
+__global__ __launch_bounds__(64) void TeamSpeakHasher2_cuda(
 	unsigned long long startcounter,
 	unsigned int iterations,
 	unsigned char targetdifficulty,
