@@ -836,7 +836,7 @@ __device__ __forceinline__ bool sha1_64_check_scalar_r8(
 // CUDA kernel: single SHA-1 block (fast phase) __launch_bounds__(256) 
 // ============================================================================
 
-__global__ __launch_bounds__(64) void TeamSpeakHasher_cuda(
+__global__ void TeamSpeakHasher_cuda(
 	unsigned long long startcounter,
 	unsigned int iterations,
 	unsigned char targetdifficulty,
@@ -963,7 +963,7 @@ __global__ __launch_bounds__(64) void TeamSpeakHasher_cuda(
 // CUDA kernel: double SHA-1 block (slow phase)
 // ============================================================================
 
-__global__ __launch_bounds__(64) void TeamSpeakHasher2_cuda(
+__global__ void TeamSpeakHasher2_cuda(
 	unsigned long long startcounter,
 	unsigned int iterations,
 	unsigned char targetdifficulty,
