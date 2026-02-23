@@ -21,6 +21,7 @@ SOFTWARE.
 */
 #include "TunedParameters.h"
 
+#include <algorithm>
 #include <string>
 
 const char* TunedParameters::DEVICENAME_STR = "devicename";
@@ -64,7 +65,9 @@ TunedParameters TunedParameters::parse(const std::string& segment) {
 
   try {
     std::string entry;
-    std::istringstream iss(segment);
+    std::string segment_spacefree = segment;
+    std::replace(segment_spacefree.begin(), segment_spacefree.end(), ' ', '_');
+    std::istringstream iss(segment_spacefree);
     while (iss >> entry) {
       using namespace std;
       auto prefix_devicename(string(DEVICENAME_STR) + "=");

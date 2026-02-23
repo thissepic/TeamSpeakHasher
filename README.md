@@ -34,11 +34,12 @@ There are two commands:
   - `-startcounter STARTCOUNTER` is optional. The passed `STARTCOUNTER` is the counter at which the computation begins. If you have already increased the security level of your identity, then you might want to use your current counter as `STARTCOUNTER`.
   - `-nickname NICKNAME` is optional. The passed `NICKNAME` will be used to represent the identity in the selection that is displayed in the `compute` command.
   
-* `compute [-throttle throttlefactor] [-retune]`
+* `compute [-throttle throttlefactor] [-retune] [-backend opencl|cuda]`
 
   Starts the actual computation.
    - `-throttle throttlefactor` is optional. If it is provided, the global work size is divided by `throttlefactor`. This can be used to reduce the load on your GPU.
    - `-retune` is optional. If it is provided, the tuning algorithm is rerun and previously stored tuning parameters are overwritten.
+   - `-backend opencl|cuda` is optional. Selects the compute backend. The default is `opencl`. Use `cuda` to use the CUDA backend on NVIDIA GPUs.
 
 
 ## FAQ

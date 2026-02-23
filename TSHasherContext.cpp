@@ -141,7 +141,6 @@ TSHasherContext::~TSHasherContext()
 std::pair<uint64_t, uint64_t> TSHasherContext::tune(IHasherDevice* device,
 																										uint32_t device_id)
 {
-	return { 2097152, 512 };
 	using namespace std::chrono;
 	std::string deviceidentifier = device->getDeviceIdentifier(device_id);
 	auto conf = Config::tuned.find(deviceidentifier);

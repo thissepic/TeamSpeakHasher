@@ -954,9 +954,7 @@ __global__ void TeamSpeakHasher_cuda(
 			identity_length_snd_block + clen - 1);
 	}
 
-	if (target_found) { 
-		results[gid] = target_found;
-	}
+	results[gid] = target_found;
 }
 
 // ============================================================================
